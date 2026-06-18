@@ -1,0 +1,20 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv/
+
+# Local env
+.env
+
+# SQLite data (mock job state)
+data/
+
+# OS
+.DS_Store
+Thumbs.db
