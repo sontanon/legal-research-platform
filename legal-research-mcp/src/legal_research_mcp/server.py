@@ -131,6 +131,12 @@ async def get_status(job_id: str, ctx: Context = None) -> dict[str, Any]:
     if recipe == "three-tool" and not is_terminal(status.get("status", "")):
         return await _held_open_status(job_id, status, ctx)
 
+    if ctx and not is_terminal(status.get("status", "")):
+        try:
+            await ctx.report_progress(progress=status.get("progress_pct", 0.0), total=100.0)
+        except Exception:
+            pass
+
     return status
 
 

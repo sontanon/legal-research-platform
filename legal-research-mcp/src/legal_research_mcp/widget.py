@@ -110,10 +110,14 @@ _WIDGET_JS = r"""
     });
   }
 
+  var pollErrors = 0;
+  var MAX_POLL_ERRORS = 5;
+
   async function poll() {
     if (!jobId || done) return;
     try {
       var result = await sendRequest('tools/call', {name: 'get_status', arguments: {job_id: jobId}});
+      pollErrors = 0;
       var st = parseResultBody(result);
       if (!st) { log('Could not parse status response'); return; }
       setProgress(st.progress_pct || 0, st.phase, st.message);
@@ -121,7 +125,22 @@ _WIDGET_JS = r"""
         finish(st);
       }
     } catch(e) {
-      log('Poll error: ' + (e.message || JSON.stringify(e)));
+      pollErrors++;
+      var msg = e.message || JSON.stringify(e);
+      if (pollErrors >= MAX_POLL_ERRORS) {
+        if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+        var errEl = document.getElementById('err-text');
+        if (errEl) errEl.textContent = 'Lost connection to the host after ' + pollErrors + ' retries (' + msg + '). The job may still be running. Ask the assistant to check job "' + jobId + '" or get its results.';
+        showView('view-error');
+        try {
+          await sendRequest('ui/update-model-context', {
+            content: [{type: 'text', text: 'Legal research job ' + jobId + ' — the progress widget lost its connection to the host after repeated poll errors (' + msg + '). The job may still be running in the background. Please check the job status by calling get_status with job_id "' + jobId + '", or retrieve results by calling get_result if the job has completed.'}],
+            structuredContent: {job_id: jobId, widget_error: true, error: msg}
+          });
+        } catch(e2) {}
+      } else {
+        log('Poll error (' + pollErrors + '/' + MAX_POLL_ERRORS + '): ' + msg);
+      }
     }
   }
 
@@ -222,8 +241,7 @@ _WIDGET_JS = r"""
 
   sendRequest('ui/initialize', {
     protocolVersion: '2026-01-26',
-    clientInfo: {name: 'legal-progress-widget', version: '1.0.0'},
-    capabilities: {},
+    appInfo: {name: 'legal-progress-widget', version: '1.0.0'},
     appCapabilities: {availableDisplayModes: ['inline']}
   }).then(function() {
     sendNotification('ui/notifications/initialized', {});
